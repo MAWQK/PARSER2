@@ -4,7 +4,7 @@
 
 Python 3
 Библиотеки: requests, csv, datetime
-API: ЦБ РФ
+API: ЦБ РФ https://www.cbr.ru/development/
 
 
 ![image](https://github.com/user-attachments/assets/b1316e6b-501c-4371-aae1-28ac7494f967)
