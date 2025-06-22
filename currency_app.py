@@ -1,149 +1,197 @@
+"""
+Парсер курсов валют ЦБ РФ с графическим интерфейсом
+Автор: [Ваше имя]
+Версия: 1.0
+Дата создания: [Дата]
+"""
+
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import requests
 from datetime import datetime
 import csv
-import os
 
-class CurrencyParserApp:
+class CurrencyApp:
     def __init__(self, root):
+        """Инициализация главного окна приложения"""
         self.root = root
-        self.root.title("Парсер курсов ЦБ РФ")
+        self.root.title("Курсы валют ЦБ РФ")
         self.root.geometry("600x400")
         self.root.resizable(False, False)
         
-        # Стиль
-        self.style = ttk.Style()
-        self.style.configure("TButton", padding=6, font=("Arial", 10))
-        self.style.configure("Header.TLabel", font=("Arial", 12, "bold"))
+        # Настройка стилей
+        self.setup_styles()
         
-        # Данные
+        # Основные данные
         self.currencies = {
-            "USD": {"name": "Доллар США", "rate": 0},
-            "EUR": {"name": "Евро", "rate": 0},
-            "CNY": {"name": "Китайский юань", "rate": 0}
+            'USD': {'name': 'Доллар США', 'rate': 0},
+            'EUR': {'name': 'Евро', 'rate': 0},
+            'CNY': {'name': 'Китайский юань', 'rate': 0}
         }
         
-        # GUI
+        # Создание интерфейса
         self.create_widgets()
         
+        # Первая загрузка данных
+        self.load_currency_rates()
+
+    def setup_styles(self):
+        """Настройка внешнего вида элементов"""
+        self.style = ttk.Style()
+        self.style.configure('TButton', font=('Arial', 10), padding=5)
+        self.style.configure('Header.TLabel', font=('Arial', 12, 'bold'))
+        self.style.configure('Treeview', font=('Arial', 10), rowheight=25)
+
     def create_widgets(self):
-        # Верхняя панель
+        """Создание элементов интерфейса"""
+        # Заголовок
         header = ttk.Label(
-            self.root, 
-            text="Курсы валют ЦБ РФ", 
-            style="Header.TLabel"
+            self.root,
+            text="Актуальные курсы валют",
+            style='Header.TLabel'
         )
         header.pack(pady=10)
+
+        # Кнопки управления
+        button_frame = ttk.Frame(self.root)
+        button_frame.pack(pady=5)
         
-        # Фрейм для кнопок
-        btn_frame = ttk.Frame(self.root)
-        btn_frame.pack(pady=10)
-        
-        self.btn_refresh = ttk.Button(
-            btn_frame, 
-            text="Обновить данные", 
-            command=self.fetch_data
+        self.refresh_btn = ttk.Button(
+            button_frame,
+            text="Обновить данные",
+            command=self.load_currency_rates
         )
-        self.btn_refresh.pack(side=tk.LEFT, padx=5)
-        
-        self.btn_save = ttk.Button(
-            btn_frame,
+        self.refresh_btn.pack(side=tk.LEFT, padx=5)
+
+        self.save_btn = ttk.Button(
+            button_frame,
             text="Сохранить в CSV",
             command=self.save_to_csv
         )
-        self.btn_save.pack(side=tk.LEFT)
-        
-        # Таблица
-        self.tree = ttk.Treeview(
-            self.root,
-            columns=("currency", "rate", "date"),
-            show="headings",
-            height=5
-        )
-        self.tree.heading("currency", text="Валюта")
-        self.tree.heading("rate", text="Курс (руб)")
-        self.tree.heading("date", text="Дата")
-        self.tree.column("currency", width=150, anchor="center")
-        self.tree.column("rate", width=150, anchor="center")
-        self.tree.column("date", width=150, anchor="center")
-        self.tree.pack(pady=10, padx=10, fill=tk.BOTH, expand=True)
-        
+        self.save_btn.pack(side=tk.LEFT)
+
+        # Таблица с курсами
+        self.create_rates_table()
+
         # Статус бар
         self.status = ttk.Label(
-            self.root, 
-            text="Нажмите 'Обновить данные'", 
+            self.root,
+            text="Готов к работе",
             relief=tk.SUNKEN,
             padding=5
         )
         self.status.pack(fill=tk.X, pady=5)
+
+    def create_rates_table(self):
+        """Создание таблицы для отображения курсов"""
+        self.rates_table = ttk.Treeview(
+            self.root,
+            columns=('currency', 'rate', 'date'),
+            show='headings',
+            height=5
+        )
         
-        # Первоначальная загрузка данных
-        self.fetch_data()
-    
-    def fetch_data(self):
-        """Получение данных с API ЦБ РФ"""
+        # Настройка столбцов
+        self.rates_table.heading('currency', text='Валюта')
+        self.rates_table.heading('rate', text='Курс (руб)')
+        self.rates_table.heading('date', text='Дата обновления')
+        
+        self.rates_table.column('currency', width=150, anchor='center')
+        self.rates_table.column('rate', width=150, anchor='center')
+        self.rates_table.column('date', width=150, anchor='center')
+        
+        self.rates_table.pack(pady=10, padx=10, fill=tk.BOTH, expand=True)
+
+    def load_currency_rates(self):
+        """Загрузка актуальных курсов с API ЦБ РФ"""
         try:
             self.status.config(text="Загрузка данных...")
             self.root.update()  # Обновляем интерфейс
             
-            url = "https://www.cbr-xml-daily.ru/daily_json.js"
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
+            # Получаем данные с API
+            api_url = "https://www.cbr-xml-daily.ru/daily_json.js"
+            response = requests.get(api_url, timeout=10)
+            response.raise_for_status()  # Проверка ошибок
+            
             data = response.json()
             
-            # Обновляем данные
-            for code in self.currencies.keys():
-                self.currencies[code]["rate"] = data["Valute"][code]["Value"]
+            # Обновляем курсы
+            for currency_code in self.currencies:
+                self.currencies[currency_code]['rate'] = data['Valute'][currency_code]['Value']
             
             # Обновляем таблицу
-            self.update_table()
+            self.update_rates_table()
+            
             self.status.config(text=f"Данные обновлены: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
             
+        except requests.exceptions.RequestException as e:
+            messagebox.showerror(
+                "Ошибка соединения",
+                f"Не удалось получить данные:\n{str(e)}"
+            )
+            self.status.config(text="Ошибка загрузки данных")
         except Exception as e:
-            messagebox.showerror("Ошибка", f"Не удалось загрузить данные:\n{str(e)}")
-            self.status.config(text="Ошибка загрузки")
-    
-    def update_table(self):
+            messagebox.showerror(
+                "Неизвестная ошибка",
+                f"Произошла непредвиденная ошибка:\n{str(e)}"
+            )
+
+    def update_rates_table(self):
         """Обновление данных в таблице"""
-        for row in self.tree.get_children():
-            self.tree.delete(row)
-            
-        for code, currency in self.currencies.items():
-            self.tree.insert("", tk.END, values=(
-                currency["name"],
-                f"{currency['rate']:.2f}",
-                datetime.now().strftime("%d.%m.%Y")
-            ))
-    
+        # Очищаем старые данные
+        for row in self.rates_table.get_children():
+            self.rates_table.delete(row)
+        
+        # Добавляем новые данные
+        for currency_code, currency_data in self.currencies.items():
+            self.rates_table.insert(
+                '',
+                tk.END,
+                values=(
+                    currency_data['name'],
+                    f"{currency_data['rate']:.2f}",
+                    datetime.now().strftime("%d.%m.%Y")
+                )
+            )
+
     def save_to_csv(self):
-        """Сохранение данных в CSV"""
+        """Сохранение курсов в CSV файл"""
         try:
+            # Выбираем место для сохранения
             filepath = filedialog.asksaveasfilename(
                 defaultextension=".csv",
-                filetypes=[("CSV Files", "*.csv")],
+                filetypes=[("CSV файлы", "*.csv")],
+                title="Сохранить курсы валют",
                 initialfile=f"currency_rates_{datetime.now().strftime('%Y%m%d')}"
             )
             
-            if not filepath:  # Если пользователь отменил
+            if not filepath:  # Если пользователь отменил сохранение
                 return
                 
-            with open(filepath, mode="w", encoding="utf-8", newline="") as f:
-                writer = csv.writer(f)
-                writer.writerow(["Валюта", "Курс (руб)", "Дата"])
-                for currency in self.currencies.values():
+            # Записываем данные в файл
+            with open(filepath, mode='w', encoding='utf-8', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow(['Валюта', 'Курс (руб)', 'Дата'])
+                for currency_data in self.currencies.values():
                     writer.writerow([
-                        currency["name"],
-                        currency["rate"],
+                        currency_data['name'],
+                        currency_data['rate'],
                         datetime.now().strftime("%Y-%m-%d")
                     ])
             
-            messagebox.showinfo("Успех", f"Данные сохранены в:\n{filepath}")
+            messagebox.showinfo(
+                "Сохранено",
+                f"Курсы валют успешно сохранены в файл:\n{filepath}"
+            )
             
         except Exception as e:
-            messagebox.showerror("Ошибка", f"Ошибка при сохранении:\n{str(e)}")
+            messagebox.showerror(
+                "Ошибка сохранения",
+                f"Не удалось сохранить файл:\n{str(e)}"
+            )
 
 if __name__ == "__main__":
+    # Создаем и запускаем приложение
     root = tk.Tk()
-    app = CurrencyParserApp(root)
+    app = CurrencyApp(root)
     root.mainloop()
