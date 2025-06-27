@@ -1,10 +1,3 @@
-"""
-Парсер курсов валют ЦБ РФ с графическим интерфейсом
-Автор: [Ваше имя]
-Версия: 1.0
-Дата создания: [Дата]
-"""
-
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import requests
